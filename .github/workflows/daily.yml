@@ -25,29 +25,38 @@ jobs:
           mkdir -p logs data reports charts
           python main.py --mode run --days 1
 
-      - name: Upload report
-        uses: actions/upload-artifact@v4
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
         with:
-          name: digest
-          path: reports/latest.html
-          
-      - name: Send email
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./reports
+          publish_branch: gh-pages
+
+      - name: Send email with link
         run: |
           pip install resend
           python - <<'EOF'
           import resend
           import os
-
           resend.api_key = os.environ['RESEND_API_KEY']
-
-          with open('reports/latest.html', 'r') as f:
-              html_content = f.read()
-
+          url = "https://mochenm7.github.io/paper-agent/latest.html"
           params = {
               "from": "Paper Agent <onboarding@resend.dev>",
               "to": "mamochen724@gmail.com",
-              "subject": "Finance Digest",
-              "html": html_content,
+              "subject": "Finance Digest - 今日论文已更新",
+              "html": f"""
+              <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+                <h2>📚 今日金融研究摘要已生成</h2>
+                <p>包含 NBER、SSRN、arXiv 最新论文，含双语 AI 分析和互动对话功能。</p>
+                <a href="{url}" style="display:inline-block;background:#e94560;color:white;
+                   padding:12px 24px;border-radius:8px;text-decoration:none;font-size:16px;">
+                  点击查看今日报告
+                </a>
+                <p style="color:#888;font-size:12px;margin-top:20px;">
+                  直接链接：{url}
+                </p>
+              </div>
+              """,
           }
           resend.Emails.send(params)
           print("Email sent!")
