@@ -45,7 +45,7 @@ jobs:
 
           params = {
               "from": "Paper Agent <onboarding@resend.dev>",
-              "to": "52647667@fsv.cuni.cz",
+              "to": "maochen724@gmail.com",
               "subject": "Finance Digest",
               "html": html_content,
           }
