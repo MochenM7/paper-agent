@@ -1,8 +1,11 @@
 name: Daily Finance Digest
 
 on:
+  # GitHub Actions 的 cron 用 UTC。布拉格冬令时 UTC+1 / 夏令时 UTC+2。
+  # 用 07:00 和 08:00 UTC 都触发一次，然后只在 Prague=09:xx 时真正执行。
   schedule:
     - cron: "0 7 * * *"
+    - cron: "0 8 * * *"
   workflow_dispatch:
 
 permissions:
@@ -25,20 +28,33 @@ jobs:
       - name: Install deps
         run: |
           python -m pip install --upgrade pip
-          pip install requests beautifulsoup4 matplotlib lxml google-genai resend
+          # 如果你后面用 RSS，需要 feedparser
+          pip install requests beautifulsoup4 matplotlib lxml google-genai resend feedparser
 
-      - name: Run agent
+      - name: Run agent (only at 09:00 Prague)
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
+          if [ "$(TZ=Europe/Prague date +%H)" != "09" ]; then
+            echo "Skip: not 09:00 in Prague now."
+            exit 0
+          fi
+
           mkdir -p logs data reports charts
           python main.py --mode run --days 1
 
-          # 生成 latest.html（你发链接要用这个）
-          # 假设程序输出类似 reports/digest_YYYY-MM-DD.html
-          latest=$(ls -1t reports/*.html | head -n 1)
+          # 生成 latest.html（发链接/Pages 用这个）
+          latest=$(ls -1t reports/*.html 2>/dev/null | head -n 1 || true)
+          if [ -z "$latest" ]; then
+            echo "ERROR: No HTML report generated in reports/."
+            ls -lah reports || true
+            exit 1
+          fi
           echo "Latest report: $latest"
           cp "$latest" reports/latest.html
+
+          # 可选：也生成一个 index.html，让打开根目录就能看到
+          cp reports/latest.html reports/index.html
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
@@ -70,7 +86,7 @@ jobs:
               "html": f"""
               <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;">
                 <h2>📚 今日金融研究摘要已生成</h2>
-                <p>包含 NBER、SSRN、arXiv 最新论文（如 SSRN 被 403 会自动少一些来源）。</p>
+                <p>今日报告已发布到 GitHub Pages。</p>
                 <a href="{url}" style="display:inline-block;background:#e94560;color:white;
                    padding:12px 24px;border-radius:8px;text-decoration:none;font-size:16px;">
                   点击查看今日报告
