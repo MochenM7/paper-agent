@@ -72,18 +72,12 @@ TOPIC_META = {
 
 # ── Sources ───────────────────────────────────────────────────────────────
 NBER_RSS_FEEDS = [
-    "https://www.nber.org/rss/new_working_papers.xml",          # All new WPs
-    "https://www.nber.org/rss/program_papers.xml?prog=AP",      # Asset Pricing
-    "https://www.nber.org/rss/program_papers.xml?prog=CF",      # Corporate Finance
-    "https://www.nber.org/rss/program_papers.xml?prog=ME",      # Monetary Economics
-    "https://www.nber.org/rss/program_papers.xml?prog=LS",      # Labor Studies (gender)
+    "https://feeds.feedburner.com/nber/new",
 ]
 
 SSRN_RSS_FEEDS = [
-    "https://papers.ssrn.com/rss/harg.xml?TOPIC_ID=62654",     # Behavioral Finance
-    "https://papers.ssrn.com/rss/harg.xml?TOPIC_ID=868",       # Asset Pricing
-    "https://papers.ssrn.com/rss/harg.xml?TOPIC_ID=2037",      # Corporate Finance
-    "https://papers.ssrn.com/rss/harg.xml?TOPIC_ID=11999",     # Machine Learning Finance
+    "https://papers.ssrn.com/rss/harg.xml?TOPIC_ID=50208",
+    "https://papers.ssrn.com/rss/harg.xml?TOPIC_ID=50209",
 ]
 
 ARXIV_CATS = [
