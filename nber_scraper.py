@@ -10,8 +10,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 from bs4 import BeautifulSoup
-import sys
-import os
+
 
 from config import NBER_CONFIG, ALL_KEYWORDS, TOPICS
 
