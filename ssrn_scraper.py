@@ -1,40 +1,58 @@
-"""
-SSRN Paper Scraper
-Fetches papers from Social Science Research Network
-"""
-
+import os
+import random
 import requests
-import json
 import time
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import List, Dict
 from bs4 import BeautifulSoup
 import re
 
-
-from config import SSRN_CONFIG, ALL_KEYWORDS, TOPICS
+from config import SSRN_CONFIG, TOPICS
 
 logger = logging.getLogger(__name__)
 
 
 class SSRNScraper:
-    """Scrapes SSRN papers with keyword filtering"""
-    
+    """Scrapes SSRN papers with keyword filtering (robust to 403 on GitHub Actions)"""
+
     def __init__(self):
         self.session = requests.Session()
         self.session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Accept": "text/html,application/xhtml+xml",
+            # 更完整一点的 headers（有时能减少被当成机器人）
+            "User-Agent": (
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            ),
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.9",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
         })
-    
+
+        # 一旦遇到 403，就把本次 run 的 SSRN 彻底关掉（防止刷屏）
+        self.blocked_this_run = False
+
+        # 在 GitHub Actions 上默认跳过 SSRN（最稳）
+        self.skip_on_github = bool(SSRN_CONFIG.get("skip_on_github_actions", True))
+        self.on_github = (os.getenv("GITHUB_ACTIONS") == "true")
+
+        # 先访问一下首页拿 cookie（有时有帮助；失败也无所谓）
+        try:
+            self.session.get("https://papers.ssrn.com", timeout=10)
+        except Exception:
+            pass
+
     def fetch_recent_papers(self, days_back: int = 7) -> List[Dict]:
         """Fetch recent SSRN papers by searching key topics"""
+
+        if self.on_github and self.skip_on_github:
+            logger.warning("SSRN often blocks GitHub Actions IPs (403). Skipping SSRN on GitHub Actions.")
+            return []
+
         all_papers = []
         seen_ids = set()
-        
-        # Search for each major topic cluster
+
         search_queries = [
             "behavioral finance sentiment",
             "asset pricing machine learning",
@@ -44,80 +62,91 @@ class SSRNScraper:
             "quantile regression asset pricing",
             "transformer attention finance",
         ]
-        
+
         for query in search_queries:
+            if self.blocked_this_run:
+                break
+
             try:
                 papers = self._search_ssrn(query, days_back)
                 for p in papers:
                     pid = p.get("id", p.get("title", ""))
-                    if pid not in seen_ids:
+                    if pid and pid not in seen_ids:
                         seen_ids.add(pid)
                         all_papers.append(p)
-                time.sleep(1.0)  # Be respectful
+
+                # 随机 sleep，别固定 1 秒（固定节奏更像机器人）
+                time.sleep(0.8 + random.random() * 0.7)
+
             except Exception as e:
                 logger.warning(f"SSRN search failed for '{query}': {e}")
-        
-        # Filter relevant
+
         relevant = self._filter_relevant(all_papers)
         logger.info(f"SSRN: Found {len(all_papers)} papers, {len(relevant)} relevant")
         return relevant[:SSRN_CONFIG["max_papers_per_run"]]
-    
+
     def _search_ssrn(self, query: str, days_back: int) -> List[Dict]:
         """Search SSRN for a given query string"""
-        papers = []
-        
+        if self.blocked_this_run:
+            return []
+
         params = {
             "form_name": "journalBrowse",
-            "txtFilter_type": "5",  # Full text
+            "txtFilter_type": "5",
             "txtFilter": query,
             "SortOrder": "ab_approval_date desc",
             "strDays": str(days_back),
             "start": "0",
             "resultCount": "50",
         }
-        
+
         try:
             resp = self.session.get(
                 "https://papers.ssrn.com/sol3/results.cfm",
                 params=params,
-                timeout=20
+                timeout=20,
+                allow_redirects=True,
             )
-            
+
+            # 关键：403 直接判定被封，本次 run 不再碰 SSRN
+            if resp.status_code == 403:
+                logger.warning("SSRN returned 403 (blocked). Disable SSRN for this run.")
+                self.blocked_this_run = True
+                return []
+
+            # 有时会 429/503（限流/风控），也别硬重试
+            if resp.status_code in (429, 503):
+                logger.warning(f"SSRN returned {resp.status_code} (rate-limited). Disable SSRN for this run.")
+                self.blocked_this_run = True
+                return []
+
             if resp.status_code != 200:
                 logger.warning(f"SSRN returned {resp.status_code}")
                 return []
-            
+
             soup = BeautifulSoup(resp.text, "html.parser")
-            papers = self._parse_ssrn_results(soup)
-            
+            return self._parse_ssrn_results(soup)
+
         except Exception as e:
             logger.error(f"SSRN request failed: {e}")
-        
-        return papers
-    
+            return []
+
     def _parse_ssrn_results(self, soup: BeautifulSoup) -> List[Dict]:
         """Parse SSRN search results page"""
         papers = []
-        
-        # SSRN result items
-        items = soup.select(".col-lg-9 .downloads, .abstract-list .trow")
-        if not items:
-            # Alternative selector
-            items = soup.select(".paper-meta, .result-item")
-        
-        # Try generic approach
+
         for item in soup.select("div[data-abstract-id], .ssrn-item"):
             try:
                 abstract_id = item.get("data-abstract-id", "")
-                
+
                 title_el = item.select_one(".title a, h3 a, .abstract-title a")
                 author_el = item.select_one(".authors, .by-author")
                 abstract_el = item.select_one(".abstract-text, .short-abstract")
                 date_el = item.select_one(".date, .submission-date")
-                
+
                 if not title_el:
                     continue
-                
+
                 paper = {
                     "source": "SSRN",
                     "id": abstract_id,
@@ -130,30 +159,27 @@ class SSRNScraper:
                 papers.append(paper)
             except Exception:
                 continue
-        
-        # Fallback: parse table rows
+
         if not papers:
             papers = self._parse_table_format(soup)
-        
+
         return papers
-    
+
     def _parse_table_format(self, soup: BeautifulSoup) -> List[Dict]:
-        """Alternative SSRN parsing for table format"""
         papers = []
-        
         rows = soup.select("tr.search-row, .paper-row")
         for row in rows:
             try:
                 title_el = row.select_one("a[href*='abstract']")
                 if not title_el:
                     continue
-                
+
                 href = title_el.get("href", "")
-                abstract_id = re.search(r"abstract_id=(\d+)", href)
-                
+                m = re.search(r"abstract_id=(\d+)", href)
+
                 paper = {
                     "source": "SSRN",
-                    "id": abstract_id.group(1) if abstract_id else "",
+                    "id": m.group(1) if m else "",
                     "title": title_el.get_text(strip=True),
                     "authors": "",
                     "abstract": "",
@@ -163,66 +189,21 @@ class SSRNScraper:
                 papers.append(paper)
             except Exception:
                 continue
-        
         return papers
-    
-    def fetch_paper_details(self, paper: Dict) -> Dict:
-        """Fetch full paper details from SSRN abstract page"""
-        if paper.get("abstract") and len(paper["abstract"]) > 100:
-            return paper
-        
-        if not paper.get("url"):
-            return paper
-        
-        try:
-            resp = self.session.get(paper["url"], timeout=15)
-            soup = BeautifulSoup(resp.text, "html.parser")
-            
-            # Extract abstract
-            abstract_el = soup.select_one(".abstract-text p, #abstract, .abstractText")
-            if abstract_el:
-                paper["abstract"] = abstract_el.get_text(strip=True)
-            
-            # Extract authors
-            author_els = soup.select(".author-name a, .authors-list .name")
-            if author_els:
-                paper["authors"] = ", ".join(a.get_text(strip=True) for a in author_els)
-            
-            # Extract date
-            date_el = soup.select_one(".submission-date, .date-posted")
-            if date_el:
-                paper["date"] = date_el.get_text(strip=True)
-            
-            time.sleep(0.5)
-        except Exception as e:
-            logger.warning(f"Could not fetch SSRN details for {paper.get('url')}: {e}")
-        
-        return paper
-    
+
     def _filter_relevant(self, papers: List[Dict]) -> List[Dict]:
-        """Filter papers by keyword relevance"""
         relevant = []
         for paper in papers:
             text = f"{paper.get('title', '')} {paper.get('abstract', '')}".lower()
-            
+
             matched_topics = []
             for topic, keywords in TOPICS.items():
                 if any(kw.lower() in text for kw in keywords):
                     matched_topics.append(topic)
-            
+
             if matched_topics:
                 paper["matched_topics"] = matched_topics
                 paper["relevance_score"] = len(matched_topics)
                 relevant.append(paper)
-        
+
         return sorted(relevant, key=lambda x: x["relevance_score"], reverse=True)
-
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    scraper = SSRNScraper()
-    papers = scraper.fetch_recent_papers(days_back=14)
-    print(f"Found {len(papers)} relevant papers")
-    for p in papers[:3]:
-        print(f"\n- {p['title'][:80]}")
-        print(f"  Topics: {p.get('matched_topics', [])}")
