@@ -1,2 +1,0 @@
-# paper-agent
-daliy paper
