@@ -25,8 +25,10 @@ def _b64_img(path: str) -> str:
 def _topic_color(topic: str) -> str:
     return TOPIC_META.get(topic, {}).get("color", "#8b949e")
 
+
 def _topic_emoji(topic: str) -> str:
     return TOPIC_META.get(topic, {}).get("emoji", "📌")
+
 
 def _topic_label(topic: str) -> str:
     return TOPIC_META.get(topic, {}).get("short", topic.replace("_", " ").title())
@@ -75,14 +77,16 @@ def generate_charts(insights: Dict, output_dir: str) -> Dict[str, str]:
         ax.set_xlabel("Papers", color=GREY, fontsize=10)
         ax.set_title("Research Topic Distribution", color=WHITE, fontsize=13, fontweight="bold", pad=12)
         ax.tick_params(colors=WHITE, labelsize=10)
-        for spine in ax.spines.values(): spine.set_color(BORDER)
+        for spine in ax.spines.values():
+            spine.set_color(BORDER)
         ax.set_xlim(0, max(counts) * 1.25)
         ax.set_facecolor(CARD_BG)
 
         plt.tight_layout()
         p = os.path.join(output_dir, "topic_distribution.png")
         plt.savefig(p, dpi=150, bbox_inches="tight", facecolor=DARK_BG)
-        plt.close(); charts["topic_distribution"] = p
+        plt.close()
+        charts["topic_distribution"] = p
 
     # ── 2. Source breakdown (donut) ──────────────────────────────────────
     source_data = insights.get("source_distribution", {})
@@ -91,6 +95,7 @@ def generate_charts(insights: Dict, output_dir: str) -> Dict[str, str]:
         fig.patch.set_facecolor(DARK_BG)
         ax.set_facecolor(DARK_BG)
 
+        # Known colors; unknown sources get gray (e.g., NEP:* if you add RSS later)
         src_colors = {"NBER": "#e94560", "SSRN": "#00b4d8", "arXiv": "#f5a623"}
         labels = list(source_data.keys())
         sizes  = list(source_data.values())
@@ -101,8 +106,10 @@ def generate_charts(insights: Dict, output_dir: str) -> Dict[str, str]:
             colors=colors, pctdistance=0.75,
             wedgeprops={"edgecolor": DARK_BG, "linewidth": 3, "width": 0.5}
         )
-        for t in texts:    t.set_color(WHITE); t.set_fontsize(12)
-        for a in autotexts: a.set_color(WHITE); a.set_fontsize(11)
+        for t in texts:
+            t.set_color(WHITE); t.set_fontsize(12)
+        for a in autotexts:
+            a.set_color(WHITE); a.set_fontsize(11)
 
         ax.set_title("Papers by Source", color=WHITE, fontsize=13, fontweight="bold", pad=12)
         total = sum(sizes)
@@ -112,7 +119,8 @@ def generate_charts(insights: Dict, output_dir: str) -> Dict[str, str]:
         p = os.path.join(output_dir, "source_breakdown.png")
         plt.tight_layout()
         plt.savefig(p, dpi=150, bbox_inches="tight", facecolor=DARK_BG)
-        plt.close(); charts["source_breakdown"] = p
+        plt.close()
+        charts["source_breakdown"] = p
 
     # ── 3. Top papers importance scores ─────────────────────────────────
     top_papers = insights.get("top_papers", [])
@@ -138,7 +146,8 @@ def generate_charts(insights: Dict, output_dir: str) -> Dict[str, str]:
         ax.set_xlabel("Importance Score", color=GREY, fontsize=10)
         ax.set_title("Top Papers by Relevance", color=WHITE, fontsize=13, fontweight="bold", pad=12)
         ax.tick_params(colors=WHITE)
-        for spine in ax.spines.values(): spine.set_color(BORDER)
+        for spine in ax.spines.values():
+            spine.set_color(BORDER)
 
         patches = [mpatches.Patch(color=v, label=k) for k, v in src_colors.items()]
         ax.legend(handles=patches, facecolor=CARD_BG, labelcolor=WHITE,
@@ -147,7 +156,8 @@ def generate_charts(insights: Dict, output_dir: str) -> Dict[str, str]:
         plt.tight_layout()
         p = os.path.join(output_dir, "paper_scores.png")
         plt.savefig(p, dpi=150, bbox_inches="tight", facecolor=DARK_BG)
-        plt.close(); charts["paper_scores"] = p
+        plt.close()
+        charts["paper_scores"] = p
 
     # ── 4. Method tags (horizontal bar) ──────────────────────────────────
     method_data = insights.get("method_distribution", {})
@@ -175,12 +185,14 @@ def generate_charts(insights: Dict, output_dir: str) -> Dict[str, str]:
         ax.set_xlabel("Papers", color=GREY, fontsize=10)
         ax.set_title("Methodology Tags", color=WHITE, fontsize=13, fontweight="bold", pad=12)
         ax.tick_params(colors=WHITE, labelsize=10)
-        for spine in ax.spines.values(): spine.set_color(BORDER)
+        for spine in ax.spines.values():
+            spine.set_color(BORDER)
 
         plt.tight_layout()
         p = os.path.join(output_dir, "method_tags.png")
         plt.savefig(p, dpi=150, bbox_inches="tight", facecolor=DARK_BG)
-        plt.close(); charts["method_tags"] = p
+        plt.close()
+        charts["method_tags"] = p
 
     logger.info(f"Generated {len(charts)} charts in {output_dir}")
     return charts
@@ -193,11 +205,16 @@ def generate_html_report(papers: List[Dict], insights: Dict, charts: Dict, outpu
     narrative  = insights.get("narrative", "")
     src_counts = insights.get("source_distribution", {})
 
-    # Source badges
+    # Dynamic sources label
+    sources_label = " + ".join(src_counts.keys()) if src_counts else "NBER + arXiv"
+
+    # Source badges (only show if count > 0)
+    src_palette = {"NBER": "#e94560", "SSRN": "#00b4d8", "arXiv": "#f5a623"}
     src_badge = " ".join([
-        f'<span style="background:{c}22;color:{c};padding:3px 10px;border-radius:10px;font-size:12px;font-weight:600;">'
-        f'{s}: {src_counts.get(s,0)}</span>'
-        for s, c in [("NBER","#e94560"), ("SSRN","#00b4d8"), ("arXiv","#f5a623")]
+        f'<span style="background:{src_palette.get(s,"#8b949e")}22;'
+        f'color:{src_palette.get(s,"#8b949e")};padding:3px 10px;border-radius:10px;'
+        f'font-size:12px;font-weight:600;">{s}: {src_counts.get(s,0)}</span>'
+        for s in src_counts.keys()
         if src_counts.get(s, 0) > 0
     ])
 
@@ -206,7 +223,7 @@ def generate_html_report(papers: List[Dict], insights: Dict, charts: Dict, outpu
     cards_html = ""
     for paper in sorted_papers[:30]:
         source = paper.get("source", "?")
-        src_color = {"NBER": "#e94560", "SSRN": "#00b4d8", "arXiv": "#f5a623"}.get(source, "#8b949e")
+        src_color = src_palette.get(source, "#8b949e")
 
         topics_html = " ".join([
             f'<span style="background:{_topic_color(t)}22;color:{_topic_color(t)};'
@@ -219,40 +236,16 @@ def generate_html_report(papers: List[Dict], insights: Dict, charts: Dict, outpu
         if paper.get("primary_category"):
             cats_html = f'<span style="background:#1f2937;color:#9ca3af;padding:2px 8px;border-radius:10px;font-size:11px;">{paper["primary_category"]}</span>'
 
+        # AI summary block (no browser-side API calls)
         ai_block = ""
         if paper.get("ai_summary"):
-            paper_id = paper.get("id", "").replace("/","-") or str(hash(paper["title"]))[:8]
             ai_block = f"""
             <div style="background:#1a1a2e;border-left:3px solid {src_color};padding:14px;
                         margin-top:12px;border-radius:0 8px 8px 0;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                  <div style="color:#8b949e;font-size:11px;letter-spacing:1px;text-transform:uppercase;">
-                    AI Analysis (EN / 中文)
-                  </div>
-                  <button onclick="toggleChat('chat-{paper_id}')"
-                    style="background:#e94560;color:white;border:none;padding:5px 14px;
-                           border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">
-                    &#128172; Deep Dive
-                  </button>
+                <div style="color:#8b949e;font-size:11px;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;">
+                  AI Analysis (EN / 中文)
                 </div>
                 <div style="color:#c9d1d9;font-size:13px;line-height:1.8;white-space:pre-line;">{paper['ai_summary']}</div>
-                <div id="chat-{paper_id}" style="display:none;margin-top:14px;border-top:1px solid #30363d;padding-top:14px;">
-                  <div style="color:#f5a623;font-size:12px;margin-bottom:8px;letter-spacing:1px;">ASK AI ABOUT THIS PAPER</div>
-                  <div id="chatlog-{paper_id}" style="max-height:300px;overflow-y:auto;margin-bottom:10px;"></div>
-                  <div style="display:flex;gap:8px;">
-                    <input id="input-{paper_id}" type="text" placeholder="e.g. How does this relate to quantile preference theory?"
-                      style="flex:1;background:#0d1117;border:1px solid #30363d;color:#f0f6fc;
-                             padding:8px 12px;border-radius:6px;font-size:13px;outline:none;"
-                      onkeydown="if(event.key==='Enter')sendMsg('{paper_id}',
-                        {repr(paper.get('title',[]))},
-                        {repr((paper.get('abstract',[]) or '')[:800])})">
-                    <button onclick="sendMsg('{paper_id}',
-                        {repr(paper.get('title',[]))},
-                        {repr((paper.get('abstract',[]) or '')[:800])})"
-                      style="background:#0f3460;color:#58a6ff;border:1px solid #30363d;
-                             padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px;">Send</button>
-                  </div>
-                </div>
             </div>"""
 
         abstract = paper.get("abstract", "No abstract")[:280]
@@ -318,7 +311,7 @@ def generate_html_report(papers: List[Dict], insights: Dict, charts: Dict, outpu
       Finance &amp; Quant Research Intelligence
     </h1>
     <div style="color:#8b949e;font-size:14px;margin-bottom:14px;">
-      {date_str} &nbsp;·&nbsp; {total} papers &nbsp;·&nbsp; NBER + SSRN + arXiv
+      {date_str} &nbsp;·&nbsp; {total} papers &nbsp;·&nbsp; {sources_label}
     </div>
     <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;">{src_badge}</div>
   </div>
@@ -366,56 +359,10 @@ def generate_html_report(papers: List[Dict], insights: Dict, charts: Dict, outpu
   <!-- Footer -->
   <div style="text-align:center;padding:22px 0;border-top:1px solid #21262d;
               color:#8b949e;font-size:12px;margin-top:10px;">
-    Paper Agent · Claude AI · Sources: NBER + SSRN + arXiv · {datetime.now().strftime("%Y-%m-%d %H:%M")} Prague
+    Paper Agent · AI Summaries · Sources: {sources_label} · {datetime.now().strftime("%Y-%m-%d %H:%M")} Prague
   </div>
 
 </div>
-
-  <!-- Deep-dive chat JS -->
-  <script>
-  function toggleChat(id) {{
-    var el = document.getElementById(id);
-    el.style.display = (el.style.display === 'none') ? 'block' : 'none';
-    if (el.style.display === 'block') {{
-      document.getElementById('input-' + id.replace('chat-','')).focus();
-    }}
-  }}
-
-  async function sendMsg(paperId, title, abstract) {{
-    var input = document.getElementById('input-' + paperId);
-    var log   = document.getElementById('chatlog-' + paperId);
-    var question = input.value.trim();
-    if (!question) return;
-    input.value = '';
-    log.innerHTML += '<div style="background:#0f3460;padding:8px 12px;border-radius:6px;margin-bottom:6px;font-size:13px;color:#93c5fd;"><b>You:</b> ' + question + '</div>';
-    log.scrollTop = log.scrollHeight;
-    var thinkId = 'think-' + Date.now();
-    log.innerHTML += '<div id="' + thinkId + '" style="color:#8b949e;font-size:13px;padding:6px 0;">Thinking...</div>';
-    log.scrollTop = log.scrollHeight;
-    try {{
-      var res = await fetch('https://api.anthropic.com/v1/messages', {{
-        method: 'POST',
-        headers: {{ 'Content-Type': 'application/json' }},
-        body: JSON.stringify({{
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          messages: [{{
-            role: 'user',
-            content: 'You are a research assistant for a quantitative behavioral finance PhD student.\n\nPaper: ' + title + '\nAbstract: ' + abstract + '\n\nStudent question: ' + question + '\n\nAnswer concisely and technically. If the question is about methodology or relevance to the student own research, be especially detailed. Answer in the same language the question is asked (Chinese if asked in Chinese, English if in English).'
-          }}]
-        }})
-      }});
-      var data = await res.json();
-      var answer = (data.content && data.content[0]) ? data.content[0].text : 'API error.';
-      document.getElementById(thinkId).remove();
-      log.innerHTML += '<div style="background:#1a1a2e;padding:10px 12px;border-radius:6px;margin-bottom:8px;font-size:13px;color:#d1d5db;border-left:3px solid #06d6a0;white-space:pre-wrap;"><b style=\"color:#06d6a0;\">AI:</b> ' + answer + '</div>';
-    }} catch(e) {{
-      document.getElementById(thinkId).remove();
-      log.innerHTML += '<div style="color:#e94560;font-size:13px;padding:6px 0;">Error: ' + e.message + '</div>';
-    }}
-    log.scrollTop = log.scrollHeight;
-  }}
-  </script>
 </body>
 </html>"""
 
