@@ -64,10 +64,19 @@ class PaperProcessor:
         return paper
 
     def _call_claude_api(self, prompt: str) -> Optional[str]:
+        import os
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        if not api_key:
+            logger.error("ANTHROPIC_API_KEY not set")
+            return None
         try:
             response = requests.post(
                 self.api_url,
-                headers={"Content-Type": "application/json"},
+                headers={
+                    "Content-Type": "application/json",
+                    "x-api-key": api_key,
+                    "anthropic-version": "2023-06-01",
+                },
                 json={
                     "model": self.model,
                     "max_tokens": self.max_tokens,
