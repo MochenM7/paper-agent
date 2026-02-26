@@ -103,9 +103,10 @@ NBER_CONFIG = {
 # SSRN SETTINGS
 # ============================================================
 SSRN_CONFIG = {
+    "enabled": False,                  # 彻底不用 SSRN
+    "skip_on_github_actions": True,
     "search_url": "https://papers.ssrn.com/sol3/results.cfm",
     "max_papers_per_run": 60,
-    # Search queries covering all topic areas
     "search_queries": [
         "behavioral finance sentiment investor",
         "asset pricing machine learning anomaly",
@@ -162,8 +163,18 @@ ARXIV_CONFIG = {
 # AI SETTINGS (Claude API)
 # ============================================================
 AI_CONFIG = {
-    "model": "claude-sonnet-4-20250514",
-    "max_tokens": 2000,
+    # Gemini 省钱优先：flash-lite（如果报 model not found，改成 "gemini-2.0-flash"）
+    "model": "gemini-2.0-flash-lite",
+
+    # 省钱关键：不要 2000，双语结构 250~400 已经够用
+    "max_tokens": 350,
+
+    # 省钱关键：每天只给 Top N 篇调用 AI（其余跳过）
+    "max_ai_papers": 10,
+
+    # 更稳定、更少胡写
+    "temperature": 0.2,
+
     "summary_prompt": """You are a research assistant for a PhD student in quantitative behavioral finance.
 
 Given this paper, provide a BILINGUAL structured analysis (English first, then Chinese for each section):
