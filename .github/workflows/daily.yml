@@ -2,44 +2,67 @@ name: Daily Finance Digest
 
 on:
   schedule:
-    - cron: '0 7 * * *'
+    - cron: "0 7 * * *"
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   run-digest:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
+          cache: "pip"
 
       - name: Install deps
-        run: pip install requests beautifulsoup4 matplotlib lxml
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4 matplotlib lxml google-genai resend
 
       - name: Run agent
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           mkdir -p logs data reports charts
           python main.py --mode run --days 1
 
+          # 生成 latest.html（你发链接要用这个）
+          # 假设程序输出类似 reports/digest_YYYY-MM-DD.html
+          latest=$(ls -1t reports/*.html | head -n 1)
+          echo "Latest report: $latest"
+          cp "$latest" reports/latest.html
+
       - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+        uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./reports
           publish_branch: gh-pages
 
       - name: Send email with link
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
         run: |
-          pip install resend
-          python - <<'EOF'
-          import resend
+          python - <<'PY'
           import os
-          resend.api_key = os.environ['RESEND_API_KEY']
-          url = "https://mochenm7.github.io/paper-agent/latest.html"
+          import resend
+
+          resend.api_key = os.environ["RESEND_API_KEY"]
+
+          owner = os.environ["OWNER"].lower()
+          repo = os.environ["REPO"]
+          url = f"https://{owner}.github.io/{repo}/latest.html"
+
           params = {
               "from": "Paper Agent <onboarding@resend.dev>",
               "to": "mamochen724@gmail.com",
@@ -47,7 +70,7 @@ jobs:
               "html": f"""
               <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;">
                 <h2>📚 今日金融研究摘要已生成</h2>
-                <p>包含 NBER、SSRN、arXiv 最新论文，含双语 AI 分析和互动对话功能。</p>
+                <p>包含 NBER、SSRN、arXiv 最新论文（如 SSRN 被 403 会自动少一些来源）。</p>
                 <a href="{url}" style="display:inline-block;background:#e94560;color:white;
                    padding:12px 24px;border-radius:8px;text-decoration:none;font-size:16px;">
                   点击查看今日报告
@@ -58,8 +81,7 @@ jobs:
               </div>
               """,
           }
+
           resend.Emails.send(params)
-          print("Email sent!")
-          EOF
-        env:
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          print("Email sent!", url)
+          PY
