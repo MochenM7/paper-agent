@@ -20,25 +20,42 @@ class GeminiProcessor:
         self.model   = GEMINI_CONFIG["model"]
 
     def process_papers(self, papers: List[Dict]) -> List[Dict]:
-        if not self.api_key:
-            logger.error("GEMINI_API_KEY not set — skipping AI processing")
-            for p in papers:
-                p["ai_summary"] = None
-                p["importance_score"] = self._score(p)
-            return papers
+    if not self.api_key:
+        logger.error("GEMINI_API_KEY not set — skipping AI processing")
+        for p in papers:
+            p["ai_summary"] = None
+            p["importance_score"] = self._score(p)
+        return papers
 
-        out = []
-        for i, paper in enumerate(papers):
-            logger.info(f"AI {i+1}/{len(papers)}: {paper['title'][:55]}...")
+    # Select top 2 papers per topic to minimize API calls
+    selected_ids = set()
+    topic_counts = {}
+    sorted_papers = sorted(papers, key=lambda x: x.get("relevance_score", 0), reverse=True)
+    
+    for p in sorted_papers:
+        for topic in p.get("matched_topics", []):
+            if topic_counts.get(topic, 0) < 2:
+                selected_ids.add(id(p))
+                topic_counts[topic] = topic_counts.get(topic, 0) + 1
+
+    logger.info(f"Selected {len(selected_ids)}/{len(papers)} papers for AI analysis")
+
+    out = []
+    for p in papers:
+        if id(p) in selected_ids:
+            logger.info(f"AI: {p['title'][:55]}...")
             try:
-                paper = self._process_one(paper)
+                p = self._process_one(p)
             except Exception as e:
                 logger.error(f"Failed: {e}")
-                paper["ai_summary"] = None
-                paper["importance_score"] = self._score(paper)
-            out.append(paper)
-            time.sleep(0.3)  # Gemini free tier: 15 RPM
-        return out
+                p["ai_summary"] = None
+                p["importance_score"] = self._score(p)
+            time.sleep(5)
+        else:
+            p["ai_summary"] = None
+            p["importance_score"] = self._score(p)
+        out.append(p)
+    return out
 
     def _process_one(self, paper: Dict) -> Dict:
         abstract = paper.get("abstract", "")
