@@ -10,9 +10,7 @@ import logging
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 from typing import List, Dict
-import sys, os
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import ARXIV_CONFIG, TOPICS
 
 logger = logging.getLogger(__name__)
