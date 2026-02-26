@@ -1,6 +1,6 @@
 """
 Paper Agent — Main Runner
-Daily: NBER + SSRN + arXiv  →  Claude AI summaries  →  HTML report + charts
+Daily: NBER + SSRN + arXiv  →  AI summaries  →  HTML report + charts
 """
 
 import json, logging, os, sys, time, shutil, argparse
@@ -10,12 +10,15 @@ from pathlib import Path
 BASE_DIR = Path(__file__).parent
 sys.path.insert(0, str(BASE_DIR))
 
-from config import REPORT_CONFIG, SCHEDULE_CONFIG
+from config import REPORT_CONFIG, SCHEDULE_CONFIG, SSRN_CONFIG
 from nber_scraper  import NBERScraper
 from ssrn_scraper  import SSRNScraper
 from arxiv_scraper import ArXivScraper
 from ai_processor import PaperProcessor
 from report_generator import generate_charts, generate_html_report
+
+# Ensure log dir exists BEFORE FileHandler is created
+(BASE_DIR / "logs").mkdir(exist_ok=True)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -42,7 +45,8 @@ def run_agent(days_back: int = 7, dry_run: bool = False) -> str:
         nber = NBERScraper()
         nber_papers = nber.fetch_recent_papers(days_back=days_back)
         for p in nber_papers[:30]:
-            if not p.get("abstract"): p = nber.fetch_paper_details(p)
+            if not p.get("abstract"):
+                p = nber.fetch_paper_details(p)
         all_papers.extend(nber_papers)
         logger.info(f"      NBER: {len(nber_papers)} papers")
     except Exception as e:
@@ -50,15 +54,19 @@ def run_agent(days_back: int = 7, dry_run: bool = False) -> str:
 
     # ── SSRN ──────────────────────────────────────────────────────────── #
     logger.info("\n[2/3] SSRN...")
-    try:
-        ssrn = SSRNScraper()
-        ssrn_papers = ssrn.fetch_recent_papers(days_back=days_back)
-        for p in ssrn_papers[:30]:
-            if not p.get("abstract"): p = ssrn.fetch_paper_details(p)
-        all_papers.extend(ssrn_papers)
-        logger.info(f"      SSRN: {len(ssrn_papers)} papers")
-    except Exception as e:
-        logger.error(f"      SSRN failed: {e}")
+    if not SSRN_CONFIG.get("enabled", True):
+        logger.info("      SSRN disabled in config — skipping.")
+    else:
+        try:
+            ssrn = SSRNScraper()
+            ssrn_papers = ssrn.fetch_recent_papers(days_back=days_back)
+            for p in ssrn_papers[:30]:
+                if not p.get("abstract"):
+                    p = ssrn.fetch_paper_details(p)
+            all_papers.extend(ssrn_papers)
+            logger.info(f"      SSRN: {len(ssrn_papers)} papers")
+        except Exception as e:
+            logger.error(f"      SSRN failed: {e}")
 
     # ── arXiv ─────────────────────────────────────────────────────────── #
     logger.info("\n[3/3] arXiv...")
@@ -92,9 +100,14 @@ def run_agent(days_back: int = 7, dry_run: bool = False) -> str:
     date_str  = datetime.now().strftime("%Y-%m-%d")
     data_path = BASE_DIR / "data" / f"papers_{date_str}.json"
     with open(data_path, "w", encoding="utf-8") as f:
-        json.dump({"date": date_str, "papers": all_papers,
-                   "insights": {k:v for k,v in insights.items() if k != "top_papers"}},
-                  f, indent=2, ensure_ascii=False)
+        json.dump(
+            {"date": date_str,
+             "papers": all_papers,
+             "insights": {k: v for k, v in insights.items() if k != "top_papers"}},
+            f,
+            indent=2,
+            ensure_ascii=False
+        )
     logger.info(f"Data saved: {data_path}")
 
     # ── charts ────────────────────────────────────────────────────────── #
@@ -118,7 +131,8 @@ def _deduplicate(papers):
     for p in papers:
         key = p.get("title", "").lower()[:60]
         if key and key not in seen:
-            seen.add(key); out.append(p)
+            seen.add(key)
+            out.append(p)
     return out
 
 
@@ -128,7 +142,7 @@ def _build_insights(papers):
     source_counts = {}
     for p in papers:
         for t in p.get("matched_topics", []):
-            topic_counts[t]  = topic_counts.get(t, 0)  + 1
+            topic_counts[t]  = topic_counts.get(t, 0) + 1
         for t in p.get("ai_tags", []):
             method_counts[t] = method_counts.get(t, 0) + 1
         src = p.get("source", "?")
@@ -192,8 +206,10 @@ def schedule_daily():
         return
 
     def job():
-        try: run_agent(days_back=1)
-        except Exception as e: logger.error(f"Scheduled run failed: {e}")
+        try:
+            run_agent(days_back=1)
+        except Exception as e:
+            logger.error(f"Scheduled run failed: {e}")
 
     run_time = SCHEDULE_CONFIG["run_time"]
     schedule.every().day.at(run_time).do(job)
