@@ -11,11 +11,11 @@ BASE_DIR = Path(__file__).parent
 sys.path.insert(0, str(BASE_DIR))
 
 from config import REPORT_CONFIG, SCHEDULE_CONFIG
-from scrapers.nber_scraper  import NBERScraper
-from scrapers.ssrn_scraper  import SSRNScraper
-from scrapers.arxiv_scraper import ArXivScraper
-from processors.ai_processor import PaperProcessor
-from reports.report_generator import generate_charts, generate_html_report
+from nber_scraper  import NBERScraper
+from ssrn_scraper  import SSRNScraper
+from arxiv_scraper import ArXivScraper
+from ai_processor import PaperProcessor
+from report_generator import generate_charts, generate_html_report
 
 logging.basicConfig(
     level=logging.INFO,
