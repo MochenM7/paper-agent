@@ -7,8 +7,7 @@ Covers: behavioral finance, asset pricing, corporate finance, gender, quant trad
 import json, os, logging, base64
 from datetime import datetime
 from typing import List, Dict
-import sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from config import REPORT_CONFIG, TOPIC_META
 
 logger = logging.getLogger(__name__)
