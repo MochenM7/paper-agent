@@ -26,13 +26,33 @@ jobs:
           python main.py --mode run --days 1
 
       - name: Send email
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: smtp.gmail.com
-          server_port: 587
-          username: ${{ secrets.EMAIL_USER }}
-          password: ${{ secrets.EMAIL_PASS }}
-          from: ${{ secrets.EMAIL_USER }}
-          to: 52647667@fsv.cuni.cz
-          subject: "Finance Digest"
-          html_body: file://reports/latest.html
+        run: |
+          pip install secure-smtplib
+          python - <<'EOF'
+          import smtplib
+          from email.mime.multipart import MIMEMultipart
+          from email.mime.text import MIMEText
+          import os
+
+          sender = os.environ['EMAIL_USER']
+          password = os.environ['EMAIL_PASS']
+          
+          with open('reports/latest.html', 'r') as f:
+              html_content = f.read()
+
+          msg = MIMEMultipart('alternative')
+          msg['Subject'] = 'Finance Digest'
+          msg['From'] = sender
+          msg['To'] = '52647667@fsv.cuni.cz'
+          msg.attach(MIMEText(html_content, 'html'))
+
+          with smtplib.SMTP('smtp.gmail.com', 587) as server:
+              server.starttls()
+              server.login(sender, password)
+              server.sendmail(sender, '52647667@fsv.cuni.cz', msg.as_string())
+          
+          print('Email sent!')
+          EOF
+        env:
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
