@@ -8,10 +8,7 @@ import json
 import logging
 import time
 from typing import List, Dict, Optional
-import sys
-import os
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import AI_CONFIG, TOPICS
 
 logger = logging.getLogger(__name__)
