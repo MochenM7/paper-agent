@@ -80,10 +80,31 @@ NBER_RSS_FEEDS = [
     "https://www.nber.org/rss/newefg.xml",    # Economic Fluctuations & Growth
 ]
 
-SSRN_RSS_FEEDS = [
-    "https://papers.ssrn.com/rss/harg.xml?TOPIC_ID=50208",
-    "https://papers.ssrn.com/rss/harg.xml?TOPIC_ID=50209",
-]
+# SSRN blocks all bots via Cloudflare (403). Replaced with top finance journals
+# and Fed Reserve working papers — equivalent coverage, no access issues.
+SSRN_RSS_FEEDS = {
+    # ── Top Finance Journals ──────────────────────────────────────────────────
+    "JF":           "https://onlinelibrary.wiley.com/action/showFeed?jc=15406261&type=etoc&feed=rss",
+    "RFS":          "https://academic.oup.com/rss/site_5504/3365.xml",
+    "JFE":          "https://rss.sciencedirect.com/publication/science/0304405X",
+    "MS":           "https://pubsonline.informs.org/action/showFeed?type=etoc&feed=rss&jc=mnsc",
+    # ── Top 5 Economics Journals (RSS-accessible) ────────────────────────────
+    "AER":          "https://pubs.aeaweb.org/action/showFeed?type=etoc&feed=rss&jc=aer",
+    "JPE":          "https://www.journals.uchicago.edu/action/showFeed?type=etoc&feed=rss&jc=jpe",
+    "Econometrica": "https://onlinelibrary.wiley.com/action/showFeed?jc=14680262&type=etoc&feed=rss",
+    # QJE, ReStud, JFQA: Oxford/Cambridge blocked by Cloudflare → use CrossRef (see CROSSREF_JOURNALS)
+    # ── Federal Reserve Working Papers ───────────────────────────────────────
+    "FEDS":         "https://www.federalreserve.gov/feeds/feds.xml",
+    "IFDP":         "https://www.federalreserve.gov/feeds/ifdp.xml",
+}
+
+# Journals blocked by Cloudflare — fetched via CrossRef REST API instead
+# CrossRef returns JSON with title, DOI, authors, abstract (when available), date
+CROSSREF_JOURNALS = {
+    "JFQA":   "0022-1090",   # Journal of Financial and Quantitative Analysis
+    "QJE":    "0033-5533",   # Quarterly Journal of Economics
+    "ReStud": "0034-6527",   # Review of Economic Studies
+}
 
 ARXIV_CATS = [
     "q-fin.TR",  # Trading & Microstructure
@@ -94,22 +115,23 @@ ARXIV_CATS = [
     "q-fin.CP",  # Computational Finance
 ]
 
-# Top Journal RSS Feeds
-JOURNAL_RSS_FEEDS = [
-    # Finance Top 3
-    ("JF",   "https://onlinelibrary.wiley.com/feed/15406261/most-recent"),
-    ("JFE",  "https://rss.sciencedirect.com/publication/science/0304405X"),
-    ("RFS",  "https://academic.oup.com/rss/site_6122/advanceAccess_6122.xml"),
-    # Econ Top 5
-    ("AER",  "https://www.aeaweb.org/journals/aer/feed"),
-    ("QJE",  "https://academic.oup.com/rss/site_5333/advanceAccess_5333.xml"),
-    ("JPE",  "https://www.journals.uchicago.edu/action/showFeed?type=etoc&feed=rss&jc=jpe"),
-    ("REStud", "https://academic.oup.com/rss/site_5388/advanceAccess_5388.xml"),
-    ("ECMA", "https://onlinelibrary.wiley.com/feed/14680262/most-recent"),
-    # Quant/Behavioral
-    ("JFQA", "https://www.cambridge.org/core/rss/product/id/6E5C92C81DB3C28B8E59BFF22E9C78FB"),
-    ("MS",   "https://pubsonline.informs.org/action/showFeed?type=etoc&feed=rss&jc=mnsc"),
-]
+# ── Source Colors (used in report badges & charts) ────────────────────────
+SOURCE_COLORS = {
+    "NBER":         "#e94560",
+    "JF":           "#00b4d8",
+    "RFS":          "#0891b2",
+    "JFE":          "#0e7490",
+    "JFQA":         "#3b82f6",
+    "MS":           "#8b5cf6",
+    "AER":          "#10b981",
+    "JPE":          "#059669",
+    "QJE":          "#06d6a0",
+    "ReStud":       "#14b8a6",
+    "Econometrica": "#f59e0b",
+    "FEDS":         "#f97316",
+    "IFDP":         "#fb923c",
+    "arXiv":        "#f5a623",
+}
 
 # ── Gemini AI ─────────────────────────────────────────────────────────────
 GEMINI_CONFIG = {
@@ -187,3 +209,5 @@ REPORT_CONFIG = {
     "charts_dir": "charts",
     "data_dir":   "data",
 }
+
+
