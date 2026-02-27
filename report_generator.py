@@ -5,7 +5,7 @@ Report Generator — HTML report with charts and Gemini-powered deep-dive chat
 import os, base64, logging
 from datetime import datetime
 from typing import List, Dict
-from config import TOPIC_META
+from config import TOPIC_META, SOURCE_COLORS
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ def generate_charts(insights: Dict, out_dir: str) -> Dict:
     os.makedirs(out_dir, exist_ok=True)
     charts = {}
     BG, CARD, WHITE, GREY, BORDER = "#0d1117","#161b22","#f0f6fc","#8b949e","#30363d"
-    src_colors = {"NBER":"#e94560","SSRN":"#00b4d8","arXiv":"#f5a623"}
+    src_colors = SOURCE_COLORS
 
     # Topic distribution
     td = insights.get("topic_distribution",{})
@@ -73,7 +73,8 @@ def generate_charts(insights: Dict, out_dir: str) -> Dict:
         for b,s in zip(bars,scores): ax.text(b.get_width()+.05,b.get_y()+b.get_height()/2,f"{s:.1f}",va="center",color=WHITE,fontsize=9)
         ax.set_xlabel("Importance Score",color=GREY,fontsize=10); ax.set_title("Top Papers",color=WHITE,fontsize=13,fontweight="bold",pad=12)
         ax.tick_params(colors=WHITE); [s.set_color(BORDER) for s in ax.spines.values()]
-        patches = [mpatches.Patch(color=v,label=k) for k,v in src_colors.items()]
+        used_srcs = {p.get("source","") for p in items}
+        patches = [mpatches.Patch(color=src_colors.get(k,"#8b949e"),label=k) for k in used_srcs if k]
         ax.legend(handles=patches,facecolor=CARD,labelcolor=WHITE,framealpha=0.9,fontsize=9)
         p = os.path.join(out_dir,"scores.png"); plt.tight_layout(); plt.savefig(p,dpi=150,bbox_inches="tight",facecolor=BG); plt.close(); charts["scores"] = p
 
@@ -86,9 +87,14 @@ def generate_report(papers: List[Dict], insights: Dict, charts: Dict, output_pat
     narrative = insights.get("narrative","")
     src_counts = insights.get("source_distribution",{})
 
+    # One badge per source, sorted: NBER first, arXiv last, journals in between
+    _order = ["NBER","JF","RFS","JFE","JFQA","MS","AER","QJE","JPE","ReStud","Econometrica","FEDS","IFDP","arXiv"]
+    _sorted_sources = [s for s in _order if src_counts.get(s,0)>0] + \
+                      [s for s in src_counts if s not in _order and src_counts[s]>0]
     src_badges = " ".join([
-        f'<span style="background:{c}22;color:{c};padding:3px 10px;border-radius:10px;font-size:12px;font-weight:600;">{s}: {src_counts.get(s,0)}</span>'
-        for s,c in [("NBER","#e94560"),("SSRN","#00b4d8"),("arXiv","#f5a623")] if src_counts.get(s,0)>0
+        f'<span style="background:{SOURCE_COLORS.get(s,"#8b949e")}22;color:{SOURCE_COLORS.get(s,"#8b949e")};'
+        f'padding:3px 10px;border-radius:10px;font-size:12px;font-weight:600;">{s}: {src_counts[s]}</span>'
+        for s in _sorted_sources
     ])
 
     # Topic rows
@@ -102,7 +108,7 @@ def generate_report(papers: List[Dict], insights: Dict, charts: Dict, output_pat
     cards = ""
     for paper in sorted_papers[:30]:
         src = paper.get("source","?")
-        sc  = {"NBER":"#e94560","SSRN":"#00b4d8","arXiv":"#f5a623"}.get(src,"#8b949e")
+        sc  = SOURCE_COLORS.get(src,"#8b949e")
         pid = str(hash(paper.get("title","") + paper.get("date","")))[-8:]
 
         topics_html = " ".join([
@@ -170,7 +176,7 @@ def generate_report(papers: List[Dict], insights: Dict, charts: Dict, output_pat
   <div style="text-align:center;padding:44px 0 28px;border-bottom:1px solid #21262d;margin-bottom:28px;">
     <div style="font-size:11px;color:#8b949e;letter-spacing:3px;text-transform:uppercase;margin-bottom:10px;">Daily Research Digest</div>
     <h1 style="font-size:30px;font-weight:700;color:#f0f6fc;margin-bottom:10px;">Finance &amp; Quant Research Intelligence</h1>
-    <div style="color:#8b949e;font-size:14px;margin-bottom:14px;">{date_str} &nbsp;·&nbsp; {total} papers &nbsp;·&nbsp; NBER + SSRN + arXiv</div>
+    <div style="color:#8b949e;font-size:14px;margin-bottom:14px;">{date_str} &nbsp;·&nbsp; {total} papers &nbsp;·&nbsp; NBER + JF/RFS/JFE/MS/AER/JPE/FEDS + arXiv</div>
     <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;">{src_badges}</div>
   </div>
 
@@ -200,7 +206,7 @@ def generate_report(papers: List[Dict], insights: Dict, charts: Dict, output_pat
   {cards}
 
   <div style="text-align:center;padding:22px 0;border-top:1px solid #21262d;color:#8b949e;font-size:12px;margin-top:10px;">
-    Paper Agent v2 · Gemini AI · NBER RSS + SSRN RSS + arXiv · {datetime.now().strftime("%Y-%m-%d %H:%M")} Prague
+    Paper Agent v2 · Gemini AI · NBER + JF/RFS/JFE/JFQA/MS/AER/QJE/JPE/ReStud/Econometrica/FEDS/IFDP + arXiv · {datetime.now().strftime("%Y-%m-%d %H:%M")} Prague
   </div>
 
 </div>
