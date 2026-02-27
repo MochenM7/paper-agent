@@ -18,10 +18,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger("PaperAgent")
 
-from scrapers.rss_scraper    import fetch_nber, fetch_ssrn, fetch_crossref
-from scrapers.arxiv_scraper  import fetch_arxiv
-from processors.gemini_processor import GeminiProcessor
-from reports.report_generator    import generate_charts, generate_report
+from rss_scraper    import fetch_nber, fetch_ssrn, fetch_crossref
+from arxiv_scraper  import fetch_arxiv
+from gemini_processor import GeminiProcessor
+from report_generator    import generate_charts, generate_report
 
 
 def run(days_back: int = 7, dry_run: bool = False):
