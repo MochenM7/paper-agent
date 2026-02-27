@@ -31,8 +31,8 @@ def run(days_back: int = 7, dry_run: bool = False):
 
     all_papers = []
 
-    # ── NBER RSS ──────────────────────────────────────────────
-    logger.info("[1/3] NBER RSS...")
+   # ── NBER RSS ──────────────────────────────────────────────
+    logger.info("[1/4] NBER RSS...")
     try:
         p = fetch_nber(days_back); all_papers.extend(p)
         logger.info(f"      NBER: {len(p)} papers")
@@ -40,15 +40,24 @@ def run(days_back: int = 7, dry_run: bool = False):
         logger.error(f"      NBER failed: {e}")
 
     # ── SSRN RSS ──────────────────────────────────────────────
-    logger.info("[2/3] SSRN RSS...")
+    logger.info("[2/4] SSRN RSS...")
     try:
         p = fetch_ssrn(days_back); all_papers.extend(p)
         logger.info(f"      SSRN: {len(p)} papers")
     except Exception as e:
         logger.error(f"      SSRN failed: {e}")
 
+    # ── Top Journals ──────────────────────────────────────────
+    logger.info("[3/4] Top Journals (JF/JFE/RFS/AER/QJE/JPE/JFQA/MS)...")
+    try:
+        from rss_scraper import fetch_journals
+        p = fetch_journals(days_back); all_papers.extend(p)
+        logger.info(f"      Journals: {len(p)} papers")
+    except Exception as e:
+        logger.error(f"      Journals failed: {e}")
+
     # ── arXiv ─────────────────────────────────────────────────
-    logger.info("[3/3] arXiv...")
+    logger.info("[4/4] arXiv...")
     try:
         p = fetch_arxiv(days_back); all_papers.extend(p)
         logger.info(f"      arXiv: {len(p)} papers")
