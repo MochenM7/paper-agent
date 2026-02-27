@@ -2,7 +2,8 @@ name: Daily Finance Digest
 
 on:
   schedule:
-    - cron: '0 7 * * *'
+    - cron: '0 8 * * 3'    # 周三 UTC 8:00
+    - cron: '0 8 * * 6'    # 周六 UTC 8:00
   workflow_dispatch:
 
 jobs:
