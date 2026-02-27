@@ -16,10 +16,13 @@ logger = logging.getLogger(__name__)
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; PaperAgent/2.0; research bot)"}
 
 
-def _parse_rss(xml_text: str, source: str) -> List[Dict]:
+def _parse_rss(xml_data, source: str) -> List[Dict]:
+    """Accept str or bytes; bytes avoids BOM issues with some feeds."""
     papers = []
     try:
-        root = ET.fromstring(xml_text)
+        if isinstance(xml_data, str):
+            xml_data = xml_data.encode("utf-8", errors="replace")
+        root = ET.fromstring(xml_data)
     except ET.ParseError as e:
         logger.warning(f"RSS parse error ({source}): {e}")
         return []
@@ -47,14 +50,15 @@ def _parse_rss(xml_text: str, source: str) -> List[Dict]:
         if not title or len(title) < 5:
             continue
 
-        # Parse date
+        # Parse date; fall back to today if field is missing or unparseable
         date_str = ""
-        for fmt in ["%a, %d %b %Y %H:%M:%S %z", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%d"]:
-            try:
-                date_str = datetime.strptime(pub_date[:25], fmt[:len(pub_date[:25])]).strftime("%Y-%m-%d")
-                break
-            except:
-                continue
+        if pub_date:
+            for fmt in ["%a, %d %b %Y %H:%M:%S %z", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%d"]:
+                try:
+                    date_str = datetime.strptime(pub_date[:len(fmt)], fmt).strftime("%Y-%m-%d")
+                    break
+                except:
+                    continue
         if not date_str:
             date_str = datetime.now().strftime("%Y-%m-%d")
 
@@ -82,6 +86,78 @@ def _filter_relevant(papers: List[Dict]) -> List[Dict]:
     return relevant
 
 
+def fetch_crossref(days_back: int = 7) -> List[Dict]:
+    """Fetch recent papers from QJE, ReStud, JFQA via CrossRef REST API."""
+    all_papers, seen = [], set()
+    cutoff = datetime.now() - timedelta(days=days_back)
+    cutoff_str = cutoff.strftime("%Y-%m-%d")
+    base = "https://api.crossref.org/journals/{issn}/works"
+    headers = {**HEADERS, "User-Agent": "PaperAgent/2.0 (mailto:mamochen724@gmail.com)"}
+
+    for journal, issn in CROSSREF_JOURNALS.items():
+        try:
+            params = {
+                "rows": 40,
+                "sort": "published",
+                "order": "desc",
+                "filter": f"from-pub-date:{cutoff_str}",
+                "select": "DOI,title,author,abstract,published,container-title",
+            }
+            r = requests.get(base.format(issn=issn), params=params,
+                             headers=headers, timeout=20)
+            if r.status_code != 200:
+                logger.warning(f"CrossRef {journal} {r.status_code}")
+                continue
+            items = r.json().get("message", {}).get("items", [])
+            for item in items:
+                doi   = item.get("DOI", "")
+                titles = item.get("title", [])
+                title = titles[0] if titles else ""
+                if not title or len(title) < 5:
+                    continue
+                # Authors
+                authors_raw = item.get("author", [])
+                authors = ", ".join(
+                    f"{a.get('given','')} {a.get('family','')}".strip()
+                    for a in authors_raw[:4]
+                )
+                # Abstract (may be absent)
+                abstract = item.get("abstract", "")
+                import re
+                abstract = re.sub(r"<[^>]+>", " ", abstract).strip()
+                # Date
+                dp = item.get("published", {}).get("date-parts", [[]])[0]
+                if len(dp) >= 3:
+                    date_str = f"{dp[0]:04d}-{dp[1]:02d}-{dp[2]:02d}"
+                elif len(dp) == 2:
+                    date_str = f"{dp[0]:04d}-{dp[1]:02d}-01"
+                else:
+                    date_str = datetime.now().strftime("%Y-%m-%d")
+                try:
+                    if datetime.strptime(date_str, "%Y-%m-%d") < cutoff:
+                        continue
+                except:
+                    pass
+                if doi not in seen:
+                    seen.add(doi)
+                    all_papers.append({
+                        "source":   journal,
+                        "id":       doi,
+                        "title":    title,
+                        "authors":  authors,
+                        "abstract": abstract[:1500],
+                        "url":      f"https://doi.org/{doi}",
+                        "date":     date_str,
+                    })
+            time.sleep(0.5)
+        except Exception as e:
+            logger.warning(f"CrossRef {journal} error: {e}")
+
+    relevant = _filter_relevant(all_papers)
+    logger.info(f"CrossRef: {len(all_papers)} total → {len(relevant)} relevant")
+    return relevant
+
+
 def fetch_nber(days_back: int = 7) -> List[Dict]:
     all_papers, seen = [], set()
     cutoff = datetime.now() - timedelta(days=days_back)
@@ -92,7 +168,7 @@ def fetch_nber(days_back: int = 7) -> List[Dict]:
             if r.status_code != 200:
                 logger.warning(f"NBER RSS {r.status_code}: {url}")
                 continue
-            papers = _parse_rss(r.text, "NBER")
+            papers = _parse_rss(r.content, "NBER")
             for p in papers:
                 try:
                     d = datetime.strptime(p["date"], "%Y-%m-%d")
@@ -116,13 +192,13 @@ def fetch_ssrn(days_back: int = 7) -> List[Dict]:
     all_papers, seen = [], set()
     cutoff = datetime.now() - timedelta(days=days_back)
 
-    for url in SSRN_RSS_FEEDS:
+    for name, url in SSRN_RSS_FEEDS.items():
         try:
             r = requests.get(url, headers=HEADERS, timeout=15)
             if r.status_code != 200:
-                logger.warning(f"SSRN RSS {r.status_code}: {url}")
+                logger.warning(f"{name} RSS {r.status_code}: {url}")
                 continue
-            papers = _parse_rss(r.text, "SSRN")
+            papers = _parse_rss(r.content, name)
             for p in papers:
                 try:
                     d = datetime.strptime(p["date"], "%Y-%m-%d")
@@ -135,37 +211,7 @@ def fetch_ssrn(days_back: int = 7) -> List[Dict]:
                     all_papers.append(p)
             time.sleep(0.5)
         except Exception as e:
-            logger.warning(f"SSRN RSS error {url}: {e}")
-
-    relevant = _filter_relevant(all_papers)
-    logger.info(f"SSRN: {len(all_papers)} total → {len(relevant)} relevant")
-    return relevant
-from config import NBER_RSS_FEEDS, SSRN_RSS_FEEDS, SSRN_RSS_FEEDS, TOPICS, JOURNAL_RSS_FEEDS
-
-def fetch_journals(days_back: int = 7) -> List[Dict]:
-    all_papers, seen = [], set()
-    cutoff = datetime.now() - timedelta(days=days_back)
-
-    for journal_name, url in JOURNAL_RSS_FEEDS:
-        try:
-            r = requests.get(url, headers=HEADERS, timeout=15)
-            if r.status_code != 200:
-                logger.warning(f"{journal_name} RSS {r.status_code}: {url}")
-                continue
-            papers = _parse_rss(r.text, journal_name)
-            for p in papers:
-                try:
-                    d = datetime.strptime(p["date"], "%Y-%m-%d")
-                    if d < cutoff:
-                        continue
-                except:
-                    pass
-                if p["id"] not in seen:
-                    seen.add(p["id"])
-                    all_papers.append(p)
-            time.sleep(0.5)
-        except Exception as e:
-            logger.warning(f"{journal_name} RSS error: {e}")
+            logger.warning(f"{name} RSS error {url}: {e}")
 
     relevant = _filter_relevant(all_papers)
     logger.info(f"Journals: {len(all_papers)} total → {len(relevant)} relevant")
