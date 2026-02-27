@@ -72,7 +72,12 @@ TOPIC_META = {
 
 # ── Sources ───────────────────────────────────────────────────────────────
 NBER_RSS_FEEDS = [
-    "https://feeds.feedburner.com/nber/new",
+    "https://www.nber.org/rss/new.xml",       # All new Working Papers
+    "https://www.nber.org/rss/newap.xml",     # Asset Pricing
+    "https://www.nber.org/rss/newcf.xml",     # Corporate Finance
+    "https://www.nber.org/rss/newme.xml",     # Monetary Economics
+    "https://www.nber.org/rss/newls.xml",     # Labor Studies (gender)
+    "https://www.nber.org/rss/newefg.xml",    # Economic Fluctuations & Growth
 ]
 
 SSRN_RSS_FEEDS = [
@@ -87,6 +92,23 @@ ARXIV_CATS = [
     "q-fin.ST",  # Statistical Finance
     "q-fin.GN",  # General Finance
     "q-fin.CP",  # Computational Finance
+]
+
+# Top Journal RSS Feeds
+JOURNAL_RSS_FEEDS = [
+    # Finance Top 3
+    ("JF",   "https://onlinelibrary.wiley.com/feed/15406261/most-recent"),
+    ("JFE",  "https://rss.sciencedirect.com/publication/science/0304405X"),
+    ("RFS",  "https://academic.oup.com/rss/site_6122/advanceAccess_6122.xml"),
+    # Econ Top 5
+    ("AER",  "https://www.aeaweb.org/journals/aer/feed"),
+    ("QJE",  "https://academic.oup.com/rss/site_5333/advanceAccess_5333.xml"),
+    ("JPE",  "https://www.journals.uchicago.edu/action/showFeed?type=etoc&feed=rss&jc=jpe"),
+    ("REStud", "https://academic.oup.com/rss/site_5388/advanceAccess_5388.xml"),
+    ("ECMA", "https://onlinelibrary.wiley.com/feed/14680262/most-recent"),
+    # Quant/Behavioral
+    ("JFQA", "https://www.cambridge.org/core/rss/product/id/6E5C92C81DB3C28B8E59BFF22E9C78FB"),
+    ("MS",   "https://pubsonline.informs.org/action/showFeed?type=etoc&feed=rss&jc=mnsc"),
 ]
 
 # ── Gemini AI ─────────────────────────────────────────────────────────────
