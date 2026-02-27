@@ -4,7 +4,7 @@ NBER RSS + SSRN RSS + arXiv → Gemini AI → HTML Report
 """
 
 import json, logging, os, shutil, argparse
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 BASE = Path(__file__).parent
@@ -18,10 +18,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger("PaperAgent")
 
-from rss_scraper import fetch_nber, fetch_ssrn
-from arxiv_scraper import fetch_arxiv
-from gemini_processor import GeminiProcessor
-from report_generator import generate_charts, generate_report
+from scrapers.rss_scraper    import fetch_nber, fetch_ssrn, fetch_crossref
+from scrapers.arxiv_scraper  import fetch_arxiv
+from processors.gemini_processor import GeminiProcessor
+from reports.report_generator    import generate_charts, generate_report
 
 
 def run(days_back: int = 7, dry_run: bool = False):
@@ -31,7 +31,7 @@ def run(days_back: int = 7, dry_run: bool = False):
 
     all_papers = []
 
-   # ── NBER RSS ──────────────────────────────────────────────
+    # ── NBER RSS ──────────────────────────────────────────────
     logger.info("[1/4] NBER RSS...")
     try:
         p = fetch_nber(days_back); all_papers.extend(p)
@@ -40,21 +40,20 @@ def run(days_back: int = 7, dry_run: bool = False):
         logger.error(f"      NBER failed: {e}")
 
     # ── SSRN RSS ──────────────────────────────────────────────
-    logger.info("[2/4] SSRN RSS...")
+    logger.info("[2/4] Journal RSS (JF/RFS/JFE/MS/AER/JPE)...")
     try:
         p = fetch_ssrn(days_back); all_papers.extend(p)
-        logger.info(f"      SSRN: {len(p)} papers")
-    except Exception as e:
-        logger.error(f"      SSRN failed: {e}")
-
-    # ── Top Journals ──────────────────────────────────────────
-    logger.info("[3/4] Top Journals (JF/JFE/RFS/AER/QJE/JPE/JFQA/MS)...")
-    try:
-        from rss_scraper import fetch_journals
-        p = fetch_journals(days_back); all_papers.extend(p)
         logger.info(f"      Journals: {len(p)} papers")
     except Exception as e:
-        logger.error(f"      Journals failed: {e}")
+        logger.error(f"      Journal RSS failed: {e}")
+
+    # ── CrossRef (QJE / ReStud / JFQA) ───────────────────────
+    logger.info("[3/4] CrossRef journals (QJE/ReStud/JFQA)...")
+    try:
+        p = fetch_crossref(days_back); all_papers.extend(p)
+        logger.info(f"      CrossRef: {len(p)} papers")
+    except Exception as e:
+        logger.error(f"      CrossRef failed: {e}")
 
     # ── arXiv ─────────────────────────────────────────────────
     logger.info("[4/4] arXiv...")
@@ -142,12 +141,23 @@ def _demo():
     ]
 
 
+def days_since_monday() -> int:
+    """Number of days from this Monday (inclusive) to today — minimum 1."""
+    return max(1, datetime.now().weekday() + 1)
+
+
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument("--mode", choices=["run","demo"], default="run")
     p.add_argument("--days", type=int, default=7)
+    p.add_argument("--this-week", action="store_true",
+                   help="Only fetch papers since Monday of the current week")
     p.add_argument("--dry-run", action="store_true")
     args = p.parse_args()
+
+    if args.this_week:
+        args.days = days_since_monday()
+        logger.info(f"--this-week: days_back={args.days} (since Monday)")
 
     for d in ["logs","data","reports","charts"]:
         (BASE / d).mkdir(exist_ok=True)
@@ -156,3 +166,4 @@ if __name__ == "__main__":
         run(days_back=args.days, dry_run=True)
     else:
         run(days_back=args.days, dry_run=args.dry_run)
+
