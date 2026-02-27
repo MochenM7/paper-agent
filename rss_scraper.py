@@ -9,7 +9,7 @@ import time
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 from typing import List, Dict
-from config import NBER_RSS_FEEDS, SSRN_RSS_FEEDS, TOPICS
+from config import NBER_RSS_FEEDS, SSRN_RSS_FEEDS, CROSSREF_JOURNALS, TOPICS
 
 logger = logging.getLogger(__name__)
 
