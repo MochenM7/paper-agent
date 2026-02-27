@@ -140,3 +140,33 @@ def fetch_ssrn(days_back: int = 7) -> List[Dict]:
     relevant = _filter_relevant(all_papers)
     logger.info(f"SSRN: {len(all_papers)} total → {len(relevant)} relevant")
     return relevant
+from config import NBER_RSS_FEEDS, SSRN_RSS_FEEDS, SSRN_RSS_FEEDS, TOPICS, JOURNAL_RSS_FEEDS
+
+def fetch_journals(days_back: int = 7) -> List[Dict]:
+    all_papers, seen = [], set()
+    cutoff = datetime.now() - timedelta(days=days_back)
+
+    for journal_name, url in JOURNAL_RSS_FEEDS:
+        try:
+            r = requests.get(url, headers=HEADERS, timeout=15)
+            if r.status_code != 200:
+                logger.warning(f"{journal_name} RSS {r.status_code}: {url}")
+                continue
+            papers = _parse_rss(r.text, journal_name)
+            for p in papers:
+                try:
+                    d = datetime.strptime(p["date"], "%Y-%m-%d")
+                    if d < cutoff:
+                        continue
+                except:
+                    pass
+                if p["id"] not in seen:
+                    seen.add(p["id"])
+                    all_papers.append(p)
+            time.sleep(0.5)
+        except Exception as e:
+            logger.warning(f"{journal_name} RSS error: {e}")
+
+    relevant = _filter_relevant(all_papers)
+    logger.info(f"Journals: {len(all_papers)} total → {len(relevant)} relevant")
+    return relevant
